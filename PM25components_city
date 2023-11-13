@@ -1,0 +1,320 @@
+# this code enables you to subset the code to a city of your choice, just enter the long and lat of the city centroid
+
+library(dplyr)
+library(mapview)
+library(data.table)
+library(geosphere)
+library(sf)
+library(leaflet)
+
+rm(list = ls())
+
+setwd("C:/Users/pegeorg/OneDrive - Emory University/Papers and Projects/DATABASES RAW/SEDAC/")
+
+
+##########################           2010 elemental carbon       ######################################################
+
+EC_2010 = readRDS(file = 'PM25 Components/non-urban/aqdh_pm25component_ec_2010_non_urban.rds')
+EC_2010 = readRDS(file = 'PM25 Components/non-urban/aqdh_pm25component_ec_2010_non_urban.rds')
+
+
+# Convert the data.frame to a data.table (if it isn't already)
+EC_2010 <- as.data.table(EC_2010)
+
+
+## Filter the dataframe to keep only rows that are within 60 miles of Atlanta, GA.
+
+# Atlanta coordinates
+atlanta_coords <- c(lon = -84.3880, lat = 33.7490)
+
+# Define the bounding box around atlanta
+lat_margin <- 200 / 69 # about 1.449 degrees for 100 miles
+lon_margin <- 200 / 54.6 # about 1.833 degrees for 100 miles at Atlanta's latitude
+
+atlbox <- list(
+  lat_min = atlanta_coords['lat'] - lat_margin,
+  lat_max = atlanta_coords['lat'] + lat_margin,
+  lon_min = atlanta_coords['lon'] - lon_margin,
+  lon_max = atlanta_coords['lon'] + lon_margin
+)
+
+# Filter the data
+atl_box_filtered <- EC_2010[lat >= atlbox$lat_min & lat <= atlbox$lat_max & 
+                                   lon >= atlbox$lon_min & lon <= atlbox$lon_max]
+
+
+#checking to vizualize this data
+str(atl_box_filtered)
+atl_box_filtered <- as.data.table(atl_box_filtered)
+set.seed(123) # Setting a seed for reproducibility
+reduced_atl_box <- atl_box_filtered[sample(.N, .N/101)]
+map <- leaflet(reduced_atl_box) %>%
+  addTiles() %>%  # Add default OpenStreetMap tiles
+  addCircleMarkers(~lon, ~lat, popup = ~final.predicted.ec)
+map
+
+
+
+# Calculate distances from each point to Atlanta
+distances <- distm(atl_box_filtered[, .(lon, lat)], matrix(atlanta_coords, nrow = 1), fun = distHaversine)
+distances_vector <- as.vector(distances)
+
+# Filter for rows within 100 miles (about 164 kilometers) of Atlanta
+near_atlanta_EC_2010 <- atl_box_filtered[distances_vector <= 164*1000]
+near_atlanta_EC_2010$Year = 2010
+
+
+
+
+###          for loop     ############
+
+# Create an empty list to store results for each year
+results_list <- list()
+
+# Atlanta coordinates and bounding box definitions
+atlanta_coords <- c(lon = -84.3880, lat = 33.7490)
+lat_margin <- 200 / 69
+lon_margin <- 200 / 54.6
+atlbox <- list(
+  lat_min = atlanta_coords['lat'] - lat_margin,
+  lat_max = atlanta_coords['lat'] + lat_margin,
+  lon_min = atlanta_coords['lon'] - lon_margin,
+  lon_max = atlanta_coords['lon'] + lon_margin
+)
+
+# Loop through the years 2010-2019 for EC
+for (year in 2010:2019) {
+  
+  # Print the current year being processed
+  print(paste("Processing data for the year:", year))
+  
+  # Load the RDS file for the current year
+  file_name <- paste0("PM25 Components/non-urban/aqdh_pm25component_ec_", year, "_non_urban.rds")
+  EC_data <- readRDS(file = file_name)
+  
+  # Convert the data.frame to a data.table
+  EC_data <- as.data.table(EC_data)
+  
+  # Filter the data using the bounding box
+  atl_box_filtered <- EC_data[lat >= atlbox$lat_min & lat <= atlbox$lat_max & 
+                                lon >= atlbox$lon_min & lon <= atlbox$lon_max]
+  
+  # Calculate distances from each point to Atlanta
+  distances <- distm(atl_box_filtered[, .(lon, lat)], matrix(atlanta_coords, nrow = 1), fun = distHaversine)
+  distances_vector <- as.vector(distances)
+  
+  # Filter for rows within 100 miles (about 64 kilometers) of Atlanta
+  near_atlanta_EC <- atl_box_filtered[distances_vector <= 164*1000]
+  near_atlanta_EC$Year <- year
+  
+  # Store the result in the list
+  results_list[[as.character(year)]] <- near_atlanta_EC
+}
+
+# At the end of the loop, results_list will have the filtered data for each year
+atl_non_urban_ec_2010_2019 = rbindlist(results_list)
+
+save(atl_non_urban_ec_2010_2019, file = 'atl_non_urban_ec_2010_2019.rda')
+
+
+###################################    NH4 (ammonia)   ####################################
+
+
+results_list <- list()
+
+# Loop through the years 2010-2019 for NH4
+for (year in 2010:2019) {
+  
+  # Print the current year being processed
+  print(paste("Processing data for the year:", year))
+  
+  # Load the RDS file for the current year
+  file_name <- paste0("PM25 Components/non-urban/aqdh_pm25component_nh4_", year, "_non_urban.rds")
+  nh4_data <- readRDS(file = file_name)
+  
+  # Convert the data.frame to a data.table
+  nh4_data <- as.data.table(nh4_data)
+  
+  # Filter the data using the bounding box
+  atl_box_filtered <- nh4_data[lat >= atlbox$lat_min & lat <= atlbox$lat_max & 
+                                lon >= atlbox$lon_min & lon <= atlbox$lon_max]
+  
+  # Calculate distances from each point to Atlanta
+  distances <- distm(atl_box_filtered[, .(lon, lat)], matrix(atlanta_coords, nrow = 1), fun = distHaversine)
+  distances_vector <- as.vector(distances)
+  
+  # Filter for rows within 100 miles (about 164 kilometers) of Atlanta
+  near_atlanta_nh4 <- atl_box_filtered[distances_vector <= 164*1000]
+  near_atlanta_nh4$Year <- year
+  
+  # Store the result in the list
+  results_list[[as.character(year)]] <- near_atlanta_nh4
+}
+
+# At the end of the loop, results_list will have the filtered data for each year
+atl_non_urban_nh4_2010_2019 = rbindlist(results_list)
+
+save(atl_non_urban_nh4_2010_2019, file = 'atl_non_urban_nh4_2010_2019.rda')
+
+
+
+###################################    NO3 (nitrate)   ####################################
+
+
+results_list <- list()
+
+# Loop through the years 2010-2019 for no3
+for (year in 2010:2019) {
+  
+  # Print the current year being processed
+  print(paste("Processing data for the year:", year))
+  
+  # Load the RDS file for the current year
+  file_name <- paste0("PM25 Components/non-urban/aqdh_pm25component_no3_", year, "_non_urban.rds")
+  no3_data <- readRDS(file = file_name)
+  
+  # Convert the data.frame to a data.table
+  no3_data <- as.data.table(no3_data)
+  
+  # Filter the data using the bounding box
+  atl_box_filtered <- no3_data[lat >= atlbox$lat_min & lat <= atlbox$lat_max & 
+                                 lon >= atlbox$lon_min & lon <= atlbox$lon_max]
+  
+  # Calculate distances from each point to Atlanta
+  distances <- distm(atl_box_filtered[, .(lon, lat)], matrix(atlanta_coords, nrow = 1), fun = distHaversine)
+  distances_vector <- as.vector(distances)
+  
+  # Filter for rows within 100 miles (about 164 kilometers) of Atlanta
+  near_atlanta_no3 <- atl_box_filtered[distances_vector <= 164*1000]
+  near_atlanta_no3$Year <- year
+  
+  # Store the result in the list
+  results_list[[as.character(year)]] <- near_atlanta_no3
+}
+
+# At the end of the loop, results_list will have the filtered data for each year
+atl_non_urban_no3_2010_2019 = rbindlist(results_list)
+
+
+###################################    organic carbon (OC)  ####################################
+
+
+results_list <- list()
+
+# Loop through the years 2010-2019 for OC
+for (year in 2010:2019) {
+  
+  # Print the current year being processed
+  print(paste("Processing data for the year:", year))
+  
+  # Load the RDS file for the current year
+  file_name <- paste0("PM25 Components/non-urban/aqdh_pm25component_OC_", year, "_non_urban.rds")
+  OC_data <- readRDS(file = file_name)
+  
+  # Convert the data.frame to a data.table
+  OC_data <- as.data.table(OC_data)
+  
+  # Filter the data using the bounding box
+  atl_box_filtered <- OC_data[lat >= atlbox$lat_min & lat <= atlbox$lat_max & 
+                                 lon >= atlbox$lon_min & lon <= atlbox$lon_max]
+  
+  # Calculate distances from each point to Atlanta
+  distances <- distm(atl_box_filtered[, .(lon, lat)], matrix(atlanta_coords, nrow = 1), fun = distHaversine)
+  distances_vector <- as.vector(distances)
+  
+  # Filter for rows within 100 miles (about 164 kilometers) of Atlanta
+  near_atlanta_OC <- atl_box_filtered[distances_vector <= 164*1000]
+  near_atlanta_OC$Year <- year
+  
+  # Store the result in the list
+  results_list[[as.character(year)]] <- near_atlanta_OC
+}
+
+# At the end of the loop, results_list will have the filtered data for each year
+atl_non_urban_OC_2010_2019 = rbindlist(results_list)
+
+save(atl_non_urban_OC_2010_2019, file = 'atl_non_urban_OC_2010_2019.rda')
+
+
+
+###################################    so4 (sulfate)   ####################################
+
+
+results_list <- list()
+
+# Loop through the years 2010-2019 for so4
+for (year in 2010:2019) {
+  
+  # Print the current year being processed
+  print(paste("Processing data for the year:", year))
+  
+  # Load the RDS file for the current year
+  file_name <- paste0("PM25 Components/non-urban/aqdh_pm25component_so4_", year, "_non_urban.rds")
+  so4_data <- readRDS(file = file_name)
+  
+  # Convert the data.frame to a data.table
+  so4_data <- as.data.table(so4_data)
+  
+  # Filter the data using the bounding box
+  atl_box_filtered <- so4_data[lat >= atlbox$lat_min & lat <= atlbox$lat_max & 
+                                 lon >= atlbox$lon_min & lon <= atlbox$lon_max]
+  
+  # Calculate distances from each point to Atlanta
+  distances <- distm(atl_box_filtered[, .(lon, lat)], matrix(atlanta_coords, nrow = 1), fun = distHaversine)
+  distances_vector <- as.vector(distances)
+  
+  # Filter for rows within 100 miles (about 164 kilometers) of Atlanta
+  near_atlanta_so4 <- atl_box_filtered[distances_vector <= 164*1000]
+  near_atlanta_so4$Year <- year
+  
+  # Store the result in the list
+  results_list[[as.character(year)]] <- near_atlanta_so4
+}
+
+# At the end of the loop, results_list will have the filtered data for each year
+atl_non_urban_so4_2010_2019 = rbindlist(results_list)
+
+save(atl_non_urban_so4_2010_2019, file = 'atl_non_urban_so4_2010_2019.rda')
+
+
+
+
+
+# create final dataframe
+PM_components_db_2010_2019 = left_join(atl_non_urban_ec_2010_2019, atl_non_urban_nh4_2010_2019, by = c("lon", "lat", "Year"))
+PM_components_db_2010_2019 = left_join(PM_components_db_2010_2019, atl_non_urban_no3_2010_2019, by = c("lon", "lat", "Year"))
+PM_components_db_2010_2019 = left_join(PM_components_db_2010_2019, atl_non_urban_so4_2010_2019, by = c("lon", "lat", "Year"))
+PM_components_db_2010_2019 = left_join(PM_components_db_2010_2019, atl_non_urban_OC_2010_2019, by = c("lon", "lat", "Year"))
+
+str(PM_components_db_2010_2019)
+
+
+
+non_urban_PM_components_db_2010_2019 = PM_components_db_2010_2019
+
+save(non_urban_PM_components_db_2010_2019, file = 'atl_non_urban_PM_components_db_2010_2019.rda')
+
+
+# create an individual ID for each group --------------------------
+# Using data.table to generate unique IDs for each combination of lon and lat
+library(data.table)
+
+# Set PM_components_db_2010_2019 as a data.table
+setDT(PM_components_db_2010_2019)
+
+# Create a unique ID for each combination of lon and lat
+unique_ids <- PM_components_db_2010_2019[, .(ID = .GRP), by = .(lon, lat)]
+
+# Assign formatted ID
+unique_ids[, PM_comp_ID := sprintf("PM%06d", ID)]
+
+# Join the ID back to the original data
+PM_components_db_2010_2019 <- PM_components_db_2010_2019[unique_ids, on = .(lon, lat), 
+                                                         .(lon, lat, PM_comp_ID, final.predicted.ec, Year, final.predicted.nh4, 
+                                                           final.predicted.no3, final.predicted.so4, final.predicted.oc)]
+
+n_distinct(PM_components_db_2010_2019$PM_comp_ID)
+
+
+
+######################            final df            ########################################
